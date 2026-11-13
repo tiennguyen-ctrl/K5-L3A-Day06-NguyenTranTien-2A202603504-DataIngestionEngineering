@@ -1,65 +1,63 @@
-# Starter · PostgreSQL + pgvector
+# Bài làm · Data Ingestion Engineering (Bộ luật Lao động 2019)
 
-Bộ khởi động **tùy chọn** cho lab cá nhân. Docker Compose tạo PostgreSQL + pgvector local; các file trong `src/` là **khung pseudocode có TODO**, chưa đọc tài liệu, tạo embedding, lưu vector hay chạy benchmark. Bạn cần tự hiện thực. Vẫn có thể chọn Qdrant, Chroma hoặc vector store tương đương theo [GUIDE.md](../GUIDE.md).
+Pipeline: PDF scan → OCR tiếng Việt → chunk (A cố định / B theo cấu trúc) → embedding OpenAI → Chroma → top-3 + đánh giá.
+Corpus: Bộ luật Lao động số 45/2019/QH14, 83 trang (`data/bo_luat_lao_dong_2019.pdf`, nguồn và giấy phép trong `data/manifest.json`).
 
-## Cấu trúc
+| Thành phần | Lựa chọn |
+|---|---|
+| OCR | Tesseract 5.5.0, `lang=vie` (tessdata_best), 300 DPI, psm 4, qua PyMuPDF + pytesseract |
+| Embedding | OpenAI `text-embedding-3-small`, 1536 chiều, cùng model cho tài liệu và câu hỏi |
+| Vector store | Chroma 1.5.9 `PersistentClient` lưu tại `chroma_db/`, HNSW (xấp xỉ), cosine |
+| Cấu hình | A: cố định 500 ký tự, overlap 50 · B: gom đoạn ≤1000 ký tự, mỗi Chương/Mục/Điều mở chunk mới · C: chỉ mục của B + filter `chapter` (chỉ cho câu hỏi có filter) |
+| Metadata mỗi chunk | `document_id`, `source`, `page`, `chapter` (số chương La Mã gán theo thứ tự xuất hiện của heading; kiểm chứng với bản PDF) |
 
-```text
-starter/
-├── docker-compose.yml     # PostgreSQL 16 + pgvector, chỉ mở cổng local
-├── init.sql               # bật extension khi tạo database mới
-├── requirements.txt       # psycopg, pypdf và python-dotenv
-├── .env.example           # cấu hình mẫu; copy thành .env
-├── scripts/check_setup.py # kiểm tra kết nối và extension (đã chạy được)
-├── src/
-│   ├── models.py          # cấu trúc dữ liệu mẫu
-│   ├── ingestion.py       # TODO: đọc / chuẩn hóa tài liệu
-│   ├── chunking.py        # TODO: chia chunk
-│   ├── embeddings.py      # TODO: chọn model API hoặc local
-│   ├── store.py           # TODO: lưu vector, metadata và filter
-│   ├── evaluation.py      # TODO: chấm truy xuất, lưu trace
-│   └── run.py             # TODO: kết nối các bước thành pipeline
-├── data/                  # bạn tự chuẩn bị corpus được phép sử dụng
-└── results/               # lưu kết quả của bạn
-```
+> Docker/pgvector của starter gốc **không dùng** (máy không có Docker): `docker-compose.yml`, `init.sql`, `scripts/check_setup.py` giữ nguyên nhưng không thuộc pipeline này.
 
-## 1. Cài và kiểm tra database
+## Cài đặt (Windows, Python 3.13)
 
-Cần Docker Desktop hoặc Docker Engine + Compose, Python **3.11–3.14**, và mạng để tải image/dependencies lần đầu. Các lệnh sau chạy từ thư mục `starter/`:
-
-```bash
+```powershell
 cd starter
-python3 -m venv .venv
-```
-
-Kích hoạt `.venv`: macOS/Linux dùng `source .venv/bin/activate`; Windows PowerShell dùng `.venv\Scripts\Activate.ps1`. Sau đó:
-
-```bash
 python -m pip install -r requirements.txt
-# macOS/Linux: cp .env.example .env
-# Windows PowerShell: Copy-Item .env.example .env
-docker compose -p day6_student_starter up -d --wait
-python scripts/check_setup.py
 ```
 
-Kỳ vọng: hiện tên database, phiên bản PostgreSQL và pgvector, sau đó `Setup OK`. Đây **chỉ là kiểm tra hạ tầng**, không phải kết quả benchmark. Docker dùng cổng `127.0.0.1:55433` và mật khẩu cố định **chỉ dùng local cho lab**; nếu cổng bận, sửa đồng thời port trong `docker-compose.yml` và `DATABASE_URL` trong `.env`. `init.sql` chỉ chạy khi volume mới được tạo; nếu database sẵn có chưa bật extension, xem log Docker và kiểm tra cấu hình thay vì xóa volume chứa dữ liệu.
+Cần cài thêm **Tesseract 5.x** (ví dụ gói `mingw-w64-ucrt-x86_64-tesseract-ocr` của MSYS2, hoặc bản cài Windows) và tải gói tiếng Việt (12 MB, không commit vào repo):
 
-Dừng container nhưng giữ dữ liệu:
-
-```bash
-docker compose -p day6_student_starter stop
+```powershell
+New-Item -ItemType Directory -Force tessdata
+Invoke-WebRequest https://github.com/tesseract-ocr/tessdata_best/raw/main/vie.traineddata -OutFile tessdata\vie.traineddata
 ```
 
-## 2. Chọn embedding model
+`src/ingestion.py` tự tìm `tesseract` trên PATH (nếu không có sẽ thử `C:\msys64\ucrt64\bin\tesseract.exe`).
 
-Điền key tương ứng trong `.env` nếu dùng OpenRouter, OpenAI hoặc Gemini; **không commit `.env`**. Model local không cần API key. `requirements.txt` chỉ có dependencies cơ bản: tự cài SDK hoặc thư viện local phù hợp với model bạn chọn và ghi lại version/lệnh cài trong báo cáo. Ghi tên model và số chiều; dùng cùng model cho toàn bộ chiến lược và vector query tương thích vector document.
+## Chạy
 
-## 3. Hoàn thiện pipeline
+Chạy từ thư mục `starter/`. Key OpenAI **không** nằm trong repo: đặt trong terminal hoặc file `.env` (đã nằm trong `.gitignore`).
 
-1. Đặt corpus vào `data/` hoặc cung cấp manifest/hướng dẫn truy cập. Đọc [GUIDE.md](../GUIDE.md) về **30 trang nội dung**, quyền dữ liệu và metadata.
-2. Hoàn thiện từng hàm TODO trong `src/`. Lưu ID tài liệu, nguồn, trang/vị trí và ít nhất một trường filter có ích.
-3. Xây ít nhất ba cấu hình; ví dụ A fixed-size, B theo đoạn, C như B nhưng có filter. Cần cùng corpus, model và benchmark; nạp lại không nhân đôi và xử lý chunk cũ khi dữ liệu đổi.
-4. Tự viết ít nhất 20 câu hỏi kèm evidence, tách dev/test trước khi thử theo [BENCHMARK.md](../BENCHMARK.md). Lưu trace top-3 và báo cáo đủ năm tiêu chí.
-5. Sau khi hoàn thiện, chạy `python -m src.run` từ thư mục `starter/`. Trước khi làm TODO, lệnh này **chủ động báo `NotImplementedError`**.
+```powershell
+$env:OPENAI_API_KEY="sk-..."; $env:EMBEDDING_MODEL="text-embedding-3-small"
+python scripts/run_ocr.py            # OCR 83 trang -> data/ocr/, data/ocr_log.csv, data/ocr_chapters.json
+python scripts/build_manifest.py     # data/manifest.json
+python scripts/verify_benchmark.py   # kiểm tra evidence và filter của 21 câu trên text OCR
+python scripts/chunk_stats.py        # thống kê chunk A/B (không gọi API)
+python -m src.run                    # embedding, lưu Chroma, top-3 cho A/B/C -> results/
+python -m src.run --reindex          # nạp lại toàn bộ (tốn token); kiểm tra không nhân đôi
+python scripts/make_audit_sheets.py  # sinh mẫu chấm thủ công -> results/audit/
+python scripts/apply_audit_labels.py # ghi nhãn và số liệu tổng hợp
+```
 
-Lưu code, cấu hình, kết quả và lệnh chạy để người chấm tái lập; không commit key, dữ liệu mật hoặc dữ liệu không có quyền chia sẻ.
+Bước OCR đã có sẵn kết quả trong `data/ocr/` nên có thể bỏ qua; `python -m src.run` chỉ cần `data/ocr/`, `../benchmark/questions.json` và key.
+
+## Kết quả và artifacts
+
+- `../benchmark/questions.json`: 21 câu (15 dev, 6 test), gold trang, evidence, filter; cách tách và rủi ro rò rỉ nằm trong `meta`.
+- `results/traces.json`: top-3 đầy đủ (văn bản chunk, score, metadata, evidence) cho 3 chiến lược × 21 câu; `results/summary.json`: Hit@1, Hit@3, tuân thủ filter.
+- `results/reindex_check.json`: minh chứng nạp lại không nhân đôi (sau `--reindex`, số bản ghi trong Chroma = số chunk = số ID duy nhất: A 453, B 339).
+- `results/ingest_stats.json`: số chunk, phân bố độ dài, token, thời gian, chi phí; `results/run_config.json`: model, tham số, phiên bản, thời điểm chạy.
+- `results/audit/`: mẫu chấm thủ công (coherence, metadata, grounding) và `audit_summary.json`. Nhãn do tôi chấm có tham khảo AI (cột `grader`); AI đề xuất bộ nhãn ban đầu, tôi giữ nguyên 92/92 (cột `author_review`).
+- `../artifacts/experiment_log.csv`: cấu hình và kết quả A/B/C.
+
+## Ghi chú trung thực
+
+- Thời gian ingest chỉ đo một lần, gồm độ trễ mạng. Chi phí tính theo giá niêm yết 0,02 USD / 1 triệu token của `text-embedding-3-small` (kiểm tra lại giá trước khi trích dẫn).
+- OCR đọc sai một số dấu tiếng Việt và chữ số La Mã trong tiêu đề chương; `chapter` được gán theo thứ tự heading nên đúng, nhưng văn bản chunk vẫn mang lỗi OCR (xem `data/ocr_chapters.json`, trường `chapter_ocr_read`).
+- Tập test (6 câu) đã được xem kết quả sau lần chạy đầu; tham số chunk không thay đổi sau đó.

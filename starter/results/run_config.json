@@ -1,0 +1,29 @@
+{
+ "run_at": "2026-11-13T11:08:05.011987+00:00",
+ "embedding_model": "text-embedding-3-small",
+ "dimensions": 1536,
+ "vector_store": "chromadb 1.5.9 PersistentClient (HNSW, cosine)",
+ "strategies": {
+  "A": {
+   "chunking": "fixed_size",
+   "size": 500,
+   "overlap": 50
+  },
+  "B": {
+   "chunking": "by_paragraph",
+   "max_size": 1000
+  },
+  "C": {
+   "chunking": "by_paragraph (same index as B)",
+   "max_size": 1000,
+   "filter": "chapter, only for questions with a filter"
+  }
+ },
+ "top_k": 3,
+ "evidence_threshold": 0.9,
+ "python": "3.13.12",
+ "openai": "3.50.0",
+ "pymupdf": "2.1",
+ "embedding_input_tokens_this_run": 204865,
+ "ocr": "tesseract 5.5.0, lang=vie (tessdata_best), 300 dpi, psm 4"
+}

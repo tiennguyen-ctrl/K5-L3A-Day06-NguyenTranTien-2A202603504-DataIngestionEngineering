@@ -1,0 +1,16 @@
+{
+ "A": {
+  "chunks_in_last_ingest": 453,
+  "records_in_chroma": 453,
+  "unique_ids": 453,
+  "indexed_at_last_run": "2026-11-13T11:07:53.262976+00:00",
+  "embed_and_store_seconds_last_run": 7.73
+ },
+ "B": {
+  "chunks_in_last_ingest": 339,
+  "records_in_chroma": 339,
+  "unique_ids": 339,
+  "indexed_at_last_run": "2026-11-13T11:07:58.420580+00:00",
+  "embed_and_store_seconds_last_run": 5.16
+ }
+}

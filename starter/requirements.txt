@@ -1,4 +1,8 @@
-# Core setup and PDF parsing. Choose and install an embedding SDK separately.
-psycopg[binary]==3.3.8
-pypdf>=5,<7
-python-dotenv>=1,<2
+# Versions used for the reported run (Python 3.13.12, Windows 11).
+# Also needs the Tesseract OCR binary (5.5.0) - see starter/README.md.
+pymupdf==2.1
+pytesseract==0.3.13
+pillow==12.3.0
+openai==3.50.0
+chromadb==1.5.9
+python-dotenv==1.2.4

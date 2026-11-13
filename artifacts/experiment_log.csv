@@ -1,4 +1,4 @@
 strategy,chunking,chunk_size,overlap,metadata,filter,vectorizer,hypothesis,dev_hit1,dev_hit3,test_hit1,test_hit3,notes
-A,,,,,,,,,,,,
-B,,,,,,,,,,,,
-C,,,,,,,,,,,,
+A,fixed_size per page,500,50,"document_id, source, page, chapter",none,"OpenAI text-embedding-3-small (1536d, cosine)","Baseline: fixed windows can cut evidence in half, so Hit and chunk coherence should be lower than B",7/15,10/15,4/6,4/6,"453 chunks; 106563 tokens; 10.3 s first run / 7.7 s reindex run; 0.0021 USD per run; coherence 1.0/2 (n=10); grounding 1.33/2 (n=6); hypothesis written after the first run, not recorded before it"
+B,by_paragraph max 1000 (new chunk at Chuong/Muc/Dieu heading),1000,0,"document_id, source, page, chapter",none,"OpenAI text-embedding-3-small (1536d, cosine)","Structure-aware chunks keep whole articles, so Hit and coherence should be higher than A",8/15,12/15,4/6,5/6,"339 chunks; 97118 tokens; 4.7 s first run / 5.2 s reindex run; 0.0019 USD per run; coherence 1.8/2 (n=10); grounding 1.67/2 (n=6); hypothesis written after the first run, not recorded before it"
+C,same index as B,1000,0,"document_id, source, page, chapter","chapter (only for the 5 dev + 3 test questions that carry a filter; others run unfiltered)","OpenAI text-embedding-3-small (1536d, cosine)","Only adds a chapter filter: keeps top-3 inside the requested scope, little change in Hit",8/15,12/15,4/6,5/6,"no extra embedding cost; filter compliance 8/8 (B: 6/8); grounding 1.67/2 (n=6); Hit identical to B; hypothesis written after the first run, not recorded before it"
